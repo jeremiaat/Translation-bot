@@ -75,6 +75,7 @@ async def webhook():
 async def set_webhook():
     if VERCEL_URL and BOT_TOKEN:
         logger.info("Setting webhook...")
-        await application.bot.set_webhook(f"https://{VERCEL_URL}/api/index")
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
+        await application.bot.set_webhook(f"https://{VERCEL_URL}/api/index", allowed_updates=Update.ALL_TYPES)
         return "Webhook has been set."
     return "VERCEL_URL or BOT_TOKEN not configured.", 500
