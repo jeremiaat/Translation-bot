@@ -19,6 +19,11 @@ VERCEL_URL = os.getenv("VERCEL_URL")
 # Initialize Flask app
 app = Flask(__name__)
 
+# Add a simple root route to check if the bot is alive
+@app.route('/', methods=['GET'])
+def home():
+    return "Bot is alive and listening.", 200
+
 # Bot handlers
 # This is the main entry point for Vercel
 @app.route('/api/index', methods=['POST'])
