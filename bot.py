@@ -1,9 +1,13 @@
+import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from deep_translator import GoogleTranslator
+from dotenv import load_dotenv
 
-# Replace this with your actual bot token
-BOT_TOKEN = '8337582417:AAGilEnO6-aenJVtNGIfOUVeBALOcB8g35U'
+# Load environment variables from .env file
+load_dotenv()
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # /start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
