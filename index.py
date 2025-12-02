@@ -1,5 +1,4 @@
 import os
-import asyncio
 import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -14,32 +13,34 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-async def main():
+def main():
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not configured.")
         return
 
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Handlers
+    # Handler functions
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Hi! Send me a message and I'll translate it to English.")
 
     async def translate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         original_text = update.message.text
         logger.info(f"Received text to translate: {original_text}")
+
         try:
             translated_text = GoogleTranslator(source='auto', target='en').translate(original_text)
             await update.message.reply_text(f'Translated:\n{translated_text}')
         except Exception as e:
             logger.error(f"Translation failed: {e}")
             await update.message.reply_text("Sorry, I couldn't translate that.")
-
+    
+    # Add handlers
     application.add_handler(CommandHandler('start', start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_message))
 
-    # Run the bot
-    await application.run_polling()
+    # Run the bot using polling
+    application.run_polling()
 
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    main()

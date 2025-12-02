@@ -31,14 +31,20 @@ def home():
 def webhook():
     logger.info("Webhook received!")
     try:
-        # Build the bot application inside the request
+        # Check if BOT_TOKEN is set
         if not BOT_TOKEN:
             logger.error("BOT_TOKEN not configured.")
             return "BOT_TOKEN not configured.", 500
 
         async def process_update():
             try:
-                application = ApplicationBuilder().token(BOT_TOKEN).build()
+                # Try to build the bot application
+                try:
+                    application = ApplicationBuilder().token(BOT_TOKEN).build()
+                    logger.info("Bot application built successfully.")
+                except Exception as e:
+                    logger.error(f"Failed to build bot application: {e}")
+                    raise
 
                 # Handlers
                 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
