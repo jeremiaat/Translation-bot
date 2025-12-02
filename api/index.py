@@ -52,6 +52,8 @@ def index():
 async def webhook():
     """Webhook endpoint to process Telegram updates."""
     try:
+        if not application.initialized:
+            await application.initialize()
         update = Update.de_json(request.get_json(force=True), application.bot)
         await application.process_update(update)
         return 'ok', 200
@@ -65,6 +67,9 @@ async def set_webhook():
     if not VERCEL_URL:
         return "VERCEL_URL not configured.", 500
     
+    if not application.initialized:
+        await application.initialize()
+
     webhook_url = f"https://{VERCEL_URL}/api/index"
     await application.bot.set_webhook(url=webhook_url, allowed_updates=Update.ALL_TYPES)
     return f"Webhook set to {webhook_url}", 200
