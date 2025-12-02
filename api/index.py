@@ -28,7 +28,7 @@ def home():
 # This is the main entry point for Vercel
 
 @app.route('/api/index', methods=['POST'])
-async def webhook():
+def webhook():
     logger.info("Webhook received!")
     try:
         # Build the bot application inside the request
@@ -36,35 +36,38 @@ async def webhook():
             logger.error("BOT_TOKEN not configured.")
             return "BOT_TOKEN not configured.", 500
 
-        try:
-            application = ApplicationBuilder().token(BOT_TOKEN).build()
+        async def process_update():
+            try:
+                application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-            # Handlers
-            async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-                await update.message.reply_text("Hi! Send me a message and I'll translate it to English.")
+                # Handlers
+                async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+                    await update.message.reply_text("Hi! Send me a message and I'll translate it to English.")
 
-            async def translate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-                original_text = update.message.text
-                logger.info(f"Received text to translate: {original_text}")
-                try:
-                    translated_text = GoogleTranslator(source='auto', target='en').translate(original_text)
-                    await update.message.reply_text(f'Translated:\n{translated_text}')
-                except Exception as e:
-                    logger.error(f"Translation failed: {e}")
-                    await update.message.reply_text("Sorry, I couldn't translate that.")
+                async def translate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+                    original_text = update.message.text
+                    logger.info(f"Received text to translate: {original_text}")
+                    try:
+                        translated_text = GoogleTranslator(source='auto', target='en').translate(original_text)
+                        await update.message.reply_text(f'Translated:\n{translated_text}')
+                    except Exception as e:
+                        logger.error(f"Translation failed: {e}")
+                        await update.message.reply_text("Sorry, I couldn't translate that.")
 
-            application.add_handler(CommandHandler('start', start))
-            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_message))
+                application.add_handler(CommandHandler('start', start))
+                application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_message))
 
-            # Process the update from Telegram
-            update = Update.de_json(request.get_json(force=True), application.bot)
-            await application.process_update(update)
-            logger.info("Update processed successfully.")
-            return 'ok'
+                # Process the update from Telegram
+                update = Update.de_json(request.get_json(force=True), application.bot)
+                await application.process_update(update)
+                logger.info("Update processed successfully.")
 
-        except Exception as e:
-            logger.exception("Error during application build or handler registration")
-            return 'error', 500
+            except Exception as e:
+                logger.exception("Error during application build or handler registration")
+                raise
+
+        asyncio.run(process_update())
+        return 'ok'
 
     except Exception as e:
         logger.exception(f"Error in webhook: {e}")
@@ -72,10 +75,12 @@ async def webhook():
 
 # A separate route to set the webhook
 @app.route('/set_webhook', methods=['GET', 'POST'])
-async def set_webhook():
+def set_webhook():
     if VERCEL_URL and BOT_TOKEN:
         logger.info("Setting webhook...")
-        application = ApplicationBuilder().token(BOT_TOKEN).build()
-        await application.bot.set_webhook(f"https://{VERCEL_URL}/api/index", allowed_updates=Update.ALL_TYPES)
+        async def set_webhook_async():
+            application = ApplicationBuilder().token(BOT_TOKEN).build()
+            await application.bot.set_webhook(f"https://{VERCEL_URL}/api/index", allowed_updates=Update.ALL_TYPES)
+        asyncio.run(set_webhook_async())
         return "Webhook has been set."
     return "VERCEL_URL or BOT_TOKEN not configured.", 500
