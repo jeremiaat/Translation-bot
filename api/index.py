@@ -1,6 +1,7 @@
 import os
 import logging
-from flask import Flask, request
+import traceback
+from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from deep_translator import GoogleTranslator
@@ -17,16 +18,25 @@ VERCEL_URL = os.getenv("VERCEL_URL")
 
 # --- Bot and Flask App Initialization ---
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN environment variable not set.")
+    logger.error("BOT_TOKEN environment variable not set.")
+    # Don't raise here, let the app start so we can see logs, but warn heavily
+else:
+    logger.info("BOT_TOKEN found.")
 
 # Initialize the bot application
-application = ApplicationBuilder().token(BOT_TOKEN).build()
+try:
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    logger.info("Bot application built successfully.")
+except Exception as e:
+    logger.error(f"Failed to build bot application: {e}")
+    application = None
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # --- Bot Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Start command received")
     await update.message.reply_text("Hi! Send me a message and I'll translate it to English.")
 
 async def translate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -34,31 +44,43 @@ async def translate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received text to translate: {original_text}")
     try:
         translated_text = GoogleTranslator(source='auto', target='en').translate(original_text)
+        logger.info(f"Translation successful: {translated_text}")
         await update.message.reply_text(f'Translated:\n{translated_text}')
     except Exception as e:
         logger.error(f"Translation failed: {e}")
         await update.message.reply_text("Sorry, I couldn't translate that.")
 
 # Add handlers to the application
-application.add_handler(CommandHandler('start', start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_message))
+if application:
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_message))
 
 # --- Flask Routes ---
 @app.route('/')
 def index():
-    return 'Bot is alive!', 200
+    return 'Bot is alive! Go to /set_webhook to set the webhook.', 200
 
 @app.route('/api/index', methods=['POST'])
 async def webhook():
     """Webhook endpoint to process Telegram updates."""
+    if not application:
+        logger.error("Application not initialized")
+        return 'App not initialized', 500
+
     try:
         if not application.initialized:
             await application.initialize()
-        update = Update.de_json(request.get_json(force=True), application.bot)
+            logger.info("Application initialized in webhook")
+
+        json_data = request.get_json(force=True)
+        # logger.info(f"Received update: {json_data}") # Uncomment for debugging, but be careful with PII
+
+        update = Update.de_json(json_data, application.bot)
         await application.process_update(update)
         return 'ok', 200
     except Exception as e:
         logger.error(f"Error processing update: {e}")
+        traceback.print_exc()
         return 'error', 500
 
 @app.route('/set_webhook', methods=['GET'])
@@ -67,9 +89,17 @@ async def set_webhook():
     if not VERCEL_URL:
         return "VERCEL_URL not configured.", 500
     
-    if not application.initialized:
-        await application.initialize()
+    if not application:
+        return "Bot application not initialized properly.", 500
 
-    webhook_url = f"https://{VERCEL_URL}/api/index"
-    await application.bot.set_webhook(url=webhook_url, allowed_updates=Update.ALL_TYPES)
-    return f"Webhook set to {webhook_url}", 200
+    try:
+        if not application.initialized:
+            await application.initialize()
+
+        webhook_url = f"https://{VERCEL_URL}/api/index"
+        await application.bot.set_webhook(url=webhook_url, allowed_updates=Update.ALL_TYPES)
+        logger.info(f"Webhook set to {webhook_url}")
+        return f"Webhook set to {webhook_url}", 200
+    except Exception as e:
+        logger.error(f"Failed to set webhook: {e}")
+        return f"Failed to set webhook: {e}", 500

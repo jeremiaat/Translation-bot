@@ -1,4 +1,5 @@
-python-telegram-bot[ext]
+python-telegram-bot[ext]==21.9
 deep-translator
 python-dotenv
 flask
+asgiref
