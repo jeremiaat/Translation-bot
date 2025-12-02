@@ -58,7 +58,13 @@ if application:
 # --- Flask Routes ---
 @app.route('/')
 def index():
-    return 'Bot is alive! Go to /set_webhook to set the webhook.', 200
+    status = "Bot is alive!"
+    if not BOT_TOKEN:
+        status += " WARNING: BOT_TOKEN is missing in Environment Variables."
+    if not application:
+        status += " WARNING: Bot application failed to initialize."
+    
+    return f"{status} Go to /set_webhook to set the webhook.", 200
 
 @app.route('/api/index', methods=['POST'])
 async def webhook():
@@ -86,17 +92,22 @@ async def webhook():
 @app.route('/set_webhook', methods=['GET'])
 async def set_webhook():
     """Sets the webhook for the bot."""
-    if not VERCEL_URL:
-        return "VERCEL_URL not configured.", 500
-    
     if not application:
-        return "Bot application not initialized properly.", 500
+        return "Bot application not initialized properly. Check if BOT_TOKEN is set in Vercel Environment Variables.", 500
 
     try:
         if not application.initialized:
             await application.initialize()
 
-        webhook_url = f"https://{VERCEL_URL}/api/index"
+        # Use the current request's host to construct the webhook URL
+        # This avoids issues with VERCEL_URL not being set or being different
+        host_url = request.host_url.rstrip('/')
+        # Ensure we are using https
+        if not host_url.startswith('https'):
+             host_url = host_url.replace('http', 'https', 1)
+             
+        webhook_url = f"{host_url}/api/index"
+        
         await application.bot.set_webhook(url=webhook_url, allowed_updates=Update.ALL_TYPES)
         logger.info(f"Webhook set to {webhook_url}")
         return f"Webhook set to {webhook_url}", 200
