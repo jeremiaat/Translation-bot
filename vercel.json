@@ -6,7 +6,6 @@
     }
   ],
   "routes": [
-    { "src": "/set_webhook", "dest": "/api/index" },
-    { "src": "/api/index", "dest": "/api/index" }
+    { "src": "/(.*)", "dest": "api/index.py" }
   ]
 }
