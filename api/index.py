@@ -42,26 +42,45 @@ async def handle_request(body: str):
     Builds the application, processes a single update, and shuts down.
     This is the serverless-friendly approach.
     """
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-    add_handlers(application)
-    await application.initialize()
-    update = Update.de_json(json.loads(body), application.bot)
-    await application.process_update(update)
-    await application.shutdown()
+    try:
+        logger.info("Building application...")
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
+        add_handlers(application)
+        
+        await application.initialize()
+        logger.info("Application initialized successfully.")
+        
+        update = Update.de_json(json.loads(body), application.bot)
+        await application.process_update(update)
+        await application.shutdown()
+    except Exception as e:
+        logger.error(f"An error occurred in handle_request: {e}", exc_info=True)
 
 class handler(BaseHTTPRequestHandler):
     """
     Vercel's entrypoint for serverless functions.
     This handles POST requests from Telegram.
     """
+    def do_GET(self):
+        """Handle GET requests for health checks or browser visits."""
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+        message = "Hello! This is the webhook endpoint for a Telegram bot. It only processes POST requests."
+        self.wfile.write(message.encode("utf-8"))
+        return
+
     def do_POST(self):
+        # Explicitly check for BOT_TOKEN at the start of the request
         if not BOT_TOKEN:
-            logger.error("BOT_TOKEN environment variable not set.")
+            logger.critical("CRITICAL: BOT_TOKEN environment variable is missing or empty in Vercel.")
             self.send_response(500)
             self.end_headers()
             self.wfile.write(b"BOT_TOKEN not set.")
             return
-            
+        
+        logger.info("BOT_TOKEN found. Proceeding to handle POST request.")
+
         try:
             content_length = int(self.headers["Content-Length"])
             body = self.rfile.read(content_length).decode("utf-8")
@@ -69,7 +88,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.end_headers()
         except Exception as e:
-            logger.error(f"Error processing update: {e}")
+            logger.error(f"Error in do_POST: {e}", exc_info=True)
             self.send_response(500)
             self.end_headers()
             self.wfile.write(f"Error: {e}".encode("utf-8"))
